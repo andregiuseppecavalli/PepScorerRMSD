@@ -49,7 +49,7 @@ def desc_calc(mols):
     return df_desc.drop(desc_todrop, axis=1)
 
 def ram_calc(ligand_path, phi_kde, psi_kde):
-    print('Calculating Ramahandran index ...')
+    print('Calculating Ramachandran index ...')
     df_ram = pd.DataFrame(None, columns=['Region 1','Region 2','Region 3', 'Region 4', 'phi_mean','psi_mean','phi_prob', 'psi_prob'])
     lengths = []
     for i, pose in tqdm(enumerate(os.listdir(ligand_path)), total=len(os.listdir(ligand_path))):
@@ -159,6 +159,7 @@ def predict_rmsd(ligands_path, rescore, out_features = False):
     preds = model.predict(X)
 
     # Output the results
+    print('Writing the output in PepScorerRMSD_output.csv file.')
     pd.concat((df_resc['Name'], pd.Series(preds).T), axis=1).rename(columns={0:'Predicted RMSD'}).to_csv(r'PepScorerRMSD_output.csv', index=False)
 
     print('Done!')

@@ -3,10 +3,8 @@ from rdkit import Chem
 import os
 import pandas as pd
 from tqdm import tqdm
-import oddt
 import numpy as np
 import joblib
-from oddt.fingerprints import PLEC
 from mordred import Calculator, descriptors
 import mordred
 from Bio.PDB import PDBParser
@@ -20,28 +18,15 @@ def convert_mol2_to_pdb(input_mol2, output_pdb):
     mol = next(pybel.readfile("mol2", input_mol2))
     mol.write("pdb", output_pdb, overwrite=True)
 
-def plec_calc(protein_path, ligands):
-    print('Calculating PLEC ...')
-    plec_list = []
-    for i in range(0,16384):
-        plec_list.append(i)
-    df_plec = pd.DataFrame(None, columns=plec_list)
-    protein = next(oddt.toolkit.readfile('mol2', protein_path))
-    protein.protein = True
-    for mol in tqdm(ligands):
-        ligand = oddt.toolkits.rdk.Molecule(mol)
-        plec = PLEC(ligand=ligand, protein=protein, sparse=False)
-        df_plec.loc[len(df_plec)] = pd.Series(plec)
-    return df_plec
-
 def desc_calc(mols):
     print('Calculating 3D descriptors ...')
-    calc = Calculator([mordred.CPSA.PNSA, mordred.CPSA.DPSA, mordred.CPSA.FPSA, 
-                   mordred.CPSA.RPCS, mordred.GeometricalIndex.Diameter3D,
-                   mordred.GeometricalIndex.GeometricalShapeIndex, mordred.MomentOfInertia.MomentOfInertia])
+    # descriptors that will be calculated
 
+    calc = Calculator([mordred.CPSA.PNSA, mordred.CPSA.DPSA, mordred.CPSA.PPSA, mordred.CPSA.FNSA, mordred.CPSA.FPSA, mordred.CPSA.WNSA, mordred.CPSA.WPSA, mordred.CPSA.RNCS, 
+                   mordred.CPSA.RPCS, mordred.CPSA.TASA, mordred.CPSA.TPSA, mordred.CPSA.RASA, mordred.CPSA.RPSA, mordred.GeometricalIndex.Diameter3D, mordred.GeometricalIndex.Radius3D, 
+                   mordred.GeometricalIndex.GeometricalShapeIndex, mordred.GeometricalIndex.PetitjeanIndex3D, mordred.MomentOfInertia.MomentOfInertia, mordred.PBF.PBF])
     df_desc = calc.pandas(mols)
-
+    # calculate number of heavy atoms and number of rotatable bonds for the descriptors' normalization
     rdk_desc = {
         'NumHeavyAtoms': [],
         'NumRotatableBonds': []
@@ -54,21 +39,20 @@ def desc_calc(mols):
 
     df_desc = pd.concat((df_desc, pd.DataFrame(rdk_desc)), axis=1)
 
-    for col in df_desc.columns:
+    for col in df_desc.columns: # descriptors normalization
         df_desc[f'{col}:nha'] = df_desc[col] / df_desc['NumHeavyAtoms']
         df_desc[f'{col}:nrb'] = df_desc[col] / df_desc['NumRotatableBonds']
 
     df_desc.drop(['NumHeavyAtoms:nha', 'NumHeavyAtoms:nrb', 'NumRotatableBonds:nha', 'NumRotatableBonds:nrb', 'NumHeavyAtoms', 'NumRotatableBonds'], axis=1, inplace=True)
+    desc_todrop = np.load(os.path.join(os.path.join(os.getcwd(), 'objects'), '3ddesc_todrop.npy'), allow_pickle=True)
 
-    df_desc = df_desc[['RPCS', 'MOMI-Z', 'PNSA2:nrb', 'DPSA4:nha', 'DPSA4:nrb', 'FPSA1:nrb', 'RPCS:nha', 'GeomDiameter:nha', 'GeomShapeIndex:nha']]
-
-    return df_desc
+    return df_desc.drop(desc_todrop, axis=1)
 
 def ram_calc(ligand_path, phi_kde, psi_kde):
     print('Calculating Ramahandran index ...')
-    df_ram = pd.DataFrame(None, columns=['Region 4', 'phi_prob', 'psi_prob'])
+    df_ram = pd.DataFrame(None, columns=['Region 1','Region 2','Region 3', 'Region 4', 'phi_mean','psi_mean','phi_prob', 'psi_prob'])
     lengths = []
-    for i, pose in tqdm(enumerate(os.listdir(ligand_path))):
+    for i, pose in tqdm(enumerate(os.listdir(ligand_path)), total=len(os.listdir(ligand_path))):
         pdb = pose.split('.')[0] + '.pdb'
         pose_path = os.path.join(ligand_path, pose)
         pdb_path = os.path.join(ligand_path, pdb)
@@ -109,8 +93,12 @@ def ram_calc(ligand_path, phi_kde, psi_kde):
                         residues += 1
 
         os.remove(pdb_path)
-
+        df_ram.loc[i, 'Region 1'] = reg1/residues
+        df_ram.loc[i, 'Region 2'] = reg2/residues
+        df_ram.loc[i, 'Region 3'] = reg3/residues
         df_ram.loc[i, 'Region 4'] = reg4/residues
+        df_ram.loc[i, 'phi_mean'] = np.array(phi_list).mean()
+        df_ram.loc[i, 'psi_mean'] = np.array(psi_list).mean()
         df_ram.loc[i, 'phi_prob'] = phi_prob
         df_ram.loc[i, 'psi_prob'] = psi_prob
         lengths.append(len(phi_psi_list))
@@ -120,24 +108,14 @@ def ram_calc(ligand_path, phi_kde, psi_kde):
     
     return df_ram, lengths
 
-def predict_rmsd(protein, ligands_path, rescore, out_features = False):
+def predict_rmsd(ligands_path, rescore, out_features = False):
 
     # read ligands with rdkit
     ligands = [Chem.MolFromMol2File(os.path.join(ligands_path, mol), sanitize=False, removeHs=False) for mol in os.listdir(ligands_path)]
     for mol in ligands:
         mol.UpdatePropertyCache(strict=False)
         Chem.SanitizeMol(mol,Chem.SanitizeFlags.SANITIZE_FINDRADICALS|Chem.SanitizeFlags.SANITIZE_SETAROMATICITY|Chem.SanitizeFlags.SANITIZE_SETCONJUGATION|Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION|Chem.SanitizeFlags.SANITIZE_SYMMRINGS,catchErrors=True)
-    # Calculate the PLEC fingerprints
-    df_plec = plec_calc(protein, ligands)
-    # Select PLEC based on Variance Threshold
-    plec_todrop = np.load(os.path.join(os.path.join(os.getcwd(), 'objects'), 'plec_vt_todrop.npy'), allow_pickle=True).astype(int)
-    X_plec_01 = df_plec.drop(plec_todrop, axis=1).to_numpy()
-    # Select PLEC based on Random Forest selector
-    plec_rf_selector = joblib.load(os.path.join(os.path.join(os.getcwd(), 'objects'), 'plec_selector.joblib'))
-    X_plec = plec_rf_selector.transform(X_plec_01)
-    # Final selection
-    X_plec = X_plec[:, [6,10,15,16,17,21,30,34,35,39,40,57,65,67,71,78,79,86,87,95,100,107,110,114,115,117,128,131,132]]
-
+        
     # Calculate 3D descriptors
     df_desc = desc_calc(ligands)
 
@@ -153,48 +131,47 @@ def predict_rmsd(protein, ligands_path, rescore, out_features = False):
         df_resc = pd.read_excel(rescore)
     else:
         raise Exception("Rescore+ file must be a CSV or XLSX file.")
-    
-    df_resc.sort_values('Name', inplace=True)
-    df_resc_sel = df_resc[['APBS_Ligand', 'APBS_Binding', 'CHARMM', 'ElectDD', 'MlpInS3', 'PLANTS_CHEMPLP_NORM_WEIGHT', 'PLANTS_CHEMPLP_NORM_CRT_WEIGHT', 'RPScore_LigContacts', 'XS_HPScore', 'XS_Average', 'XS_Binding']]
-
+        
     # Get pep length dummy
     pep_dummies = []
     for length in pep_lengths:
-        du_encode = [0] * 10
-        du_encode[length-1] = 1
+        du_encode = [0] * 8
+        du_encode[length-3] = 1
         pep_dummies.append(du_encode)
 
 
-    df_dummy = pd.DataFrame(pep_dummies, columns=['pep length_1', 'pep length_2', 'pep length_3', 'pep length_4', 'pep length_5',
+    df_dummy = pd.DataFrame(pep_dummies, columns=['pep length_3', 'pep length_4', 'pep length_5',
                                                   'pep length_6', 'pep length_7', 'pep length_8', 'pep length_9', 'pep length_10'])
-    df_dummy = df_dummy[['pep length_3', 'pep length_5', 'pep length_8', 'pep length_9', 'pep length_10']]
 
     # concatenate all features
-    df = pd.concat((df_dummy, df_ram, df_desc, pd.DataFrame(X_plec), df_resc_sel), axis=1)
-
-    if out_features:
-        pd.concat((df_resc['Name'], df), axis=1).to_csv(r'PepScorerRMSD_features.csv', index=False)
+    df = pd.concat((df_dummy, df_resc.drop(columns='Name'), df_desc, df_ram), axis=1)
+    if df.shape[1] != 92:
+        raise Exception(f'Number of features before SFS is {df.shape[1]}, it should be 92!')
+    # select features with Sequential Feature Selector
+    sfs = joblib.load(os.path.join(os.path.join(os.getcwd(), 'objects'), 'sfs.joblib'))
+    X = sfs.transform(df)
+    if out_features: # save features file
+        pd.concat((df_resc['Name'], df.iloc[:,list(sfs.k_feature_idx_)]), axis=1).to_csv(r'PepScorerRMSD_features.csv', index=False)
 
     print('Predicting RMSD ...')
     # Predict
     model = joblib.load(os.path.join(os.path.join(os.getcwd(), 'objects'), 'PepScorerRMSD.joblib'))
-    preds = model.predict(df.to_numpy())
+    preds = model.predict(X)
 
     # Output the results
-    pd.concat((df_resc['Name'], pd.Series(preds).T), axis=1).to_csv(r'PepScorerRMSD_output.csv', index=False)
+    pd.concat((df_resc['Name'], pd.Series(preds).T), axis=1).rename(columns={0:'Predicted RMSD'}).to_csv(r'PepScorerRMSD_output.csv', index=False)
 
     print('Done!')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Predicts the RMSD of a peptide binding pose with the model PepScorer::RMSD")
     
-    parser.add_argument("-p", "--protein", type=str, required=True, help="Path of the protein mol2 file.")
     parser.add_argument("-l", "--ligand", type=str, required=True, help="Path of the directory with mol2 file/s of the ligand/s.")
     parser.add_argument("-r", "--rescore", type=str, required=True, help="Path of CSV or XLSX file with Rescore+ features.")
     parser.add_argument("-f", "--features", type=bool, help='Save or not calculated features CSV file. Default is "False", write "True" to save.', default=False)
     args = parser.parse_args()
     
     if args.features:
-        predict_rmsd(args.protein, args.ligand, args.rescore, out_features = True)
+        predict_rmsd(args.ligand, args.rescore, out_features = True)
     else:
-        predict_rmsd(args.protein, args.ligand, args.rescore)
+        predict_rmsd(args.ligand, args.rescore)

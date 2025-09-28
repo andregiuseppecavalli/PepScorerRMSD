@@ -5,7 +5,22 @@ In this section are included the information to install and use **PepScorer::RMS
 ## Installation
 
 Creating a new python environment, with `python >= 3.12`, is recommended before running the requirements installation.
-After downloading and extracting the folder, install all the requirements:
+First, download and extract the folder in your project directory.
+
+## Setting Up a Python Virtual Environment
+### 1. Create a virtual environment
+Run the following command in your project directory:
+
+```bash
+python3 -m venv .venv
+```
+This will create a folder called `.venv` containing the virtual environment.
+
+### 2. Activate the virtual environment
+On Linux: `source .venv/bin/activate`
+On Windows: `.venv\Scripts\activate`
+
+## Install all the requirements:
 
 ```bash
 pip install -r requirements.txt

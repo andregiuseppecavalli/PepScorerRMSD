@@ -59,3 +59,9 @@ The scores to calculate are: `CHARMM, APBS, ELECT, ELECTDD, MLPINS, MLPINS2, MLP
 
 **VegaZZ** natively does not include `XScore` and `ChemPlp`. `XScore` can be downloaded freely at the following link: http://www.sioc-ccbg.ac.cn/?p=42&software=xscore. 
 PLANTS can be obtained from the following GitHub repository: https://github.com/purnawanpp/plants to calculate `ChemPlp` scores.
+
+## Other files
+
+The file `train.py` can be used to train a model with your own poses.
+
+The file `train_and_evaluate.ipynb` is a jupiter notebook that can be used to replicate the results obtained on evaluation and external test sets.

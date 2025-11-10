@@ -69,7 +69,7 @@ pystow==0.7.0
 python-dateutil==2.9.0.post0
 PyTrie==0.4.0
 pytz==2025.1
-pywin32==311
+pywin32==311; platform_system == "Windows"
 pyzmq==27.1.0
 ratelimit==2.2.1
 rdkit==2024.9.5

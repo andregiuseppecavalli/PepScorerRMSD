@@ -21,13 +21,9 @@ On Linux: `source .venv/bin/activate`
 On Windows: `.venv\Scripts\activate`
 
 ## Install all the requirements:
-On Windows:
+
 ```bash
 pip install -r requirements.txt
-```
-On Linux:
-```bash
-pip install -r requirements.txt --skip pywin32
 ```
 ## Testing
 

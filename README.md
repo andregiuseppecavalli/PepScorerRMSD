@@ -2,6 +2,8 @@
 
 This repository includes the information to install and use **PepScorer::RMSD**, a machine-learning model for protein-peptide pose selection. 
 Read more in the original article https://doi.org/10.3390/ijms27020870.
+[graphical_abstract.tiff](https://github.com/user-attachments/files/26047793/graphical_abstract.tiff)
+
 
 ## Installation
 

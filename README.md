@@ -57,7 +57,7 @@ options:
                         Save or not calculated features CSV file. Default is "False", write "True" to save.
 ```
 
-The `-r` tag is used to pass Rescore+ features calculated with **VegaZZ Rescore+**.
+The `-r` tag is used to pass Rescore+ features calculated with [VegaZZ](https://www.ddl.unimi.it/cms/index.php?Software_projects:VEGA_ZZ:Download) **Rescore+**.
 The scores to calculate are: `CHARMM, APBS, ELECT, ELECTDD, MLPINS, MLPINS2, MLPINS3, MLPINSF, RPSCORE, CHEMPLP, XSCORE`. The order of the columns in your feature CSV/XLSX file should be the same as in the `test/rescore.xlsx` file. Check that the order of the poses in your Rescore+ input file is the same as the one in the poses' directory, and that the calculated scores are 30.
 
 **VegaZZ** natively does not include `XScore` and `ChemPlp`. `XScore` can be downloaded freely at the following link: http://www.sioc-ccbg.ac.cn/?p=42&software=xscore. 
